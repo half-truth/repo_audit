@@ -1,0 +1,30 @@
+[package]
+name = "repo-audit"
+version = "0.2.0"
+edition = "2021"
+rust-version = "1.98"
+description = "Git repository health auditor: churn hotspots, bus factor, bug clustering, growth trend, firefight frequency"
+license = "MIT"
+
+# Deliberate dependency allowlist. See AGENTS.md (Red lines) — adding a crate requires an ADR.
+[dependencies]
+rusqlite = { version = "0.37", features = ["bundled", "functions"] }  # bundles its own C SQLite
+regex = "1"
+clap = { version = "4", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+sha1 = "0.10"
+libc = "0.2"
+
+[dev-dependencies]
+tempfile = "3"
+
+[lib]
+name = "repo_audit"
+path = "src/lib.rs"
+
+[[bin]]
+name = "repo-audit"
+path = "src/main.rs"
+
+[profile.release]
+opt-level = 3
