@@ -10,7 +10,7 @@ use std::sync::OnceLock;
 /// descriptors. Excluded files are disclosed in the report, never silently
 /// dropped — their line count dwarfs the real signal otherwise.
 pub const SKIP_FILE_SRC: &str = concat!(
-    r"(^|/)(package-lock\.json|yarn\.lock|pnpm-lock\.yaml|poetry\.lock|Cargo\.lock|go\.sum|",
+    r"(^|/)(package-lock\.json|yarn\.lock|pnpm-lock\.yaml|poetry\.lock|uv\.lock|Cargo\.lock|go\.sum|",
     r"Gemfile\.lock|composer\.lock|libs\.versions\.toml)$",
     r"|\.min\.(js|css)$|(^|/)(vendor|node_modules|dist|target|build)/",
     r"|\.(ai|psd|png|jpe?g|gif|ico|svg|pdf|woff2?|ttf)$",
@@ -97,6 +97,8 @@ mod tests {
             "package-lock.json",
             "a/b/pnpm-lock.yaml",
             "sub/go.sum",
+            "uv.lock",
+            "a/b/uv.lock",
             "web/x.min.js",
             "vendor/lib/x.py",
             "node_modules/a/b.js",
