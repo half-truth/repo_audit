@@ -3,11 +3,12 @@ name: audit
 on:
   workflow_dispatch:
     inputs:
-      repo_url:
-        description: 'repo URL or owner/repo'
+      repos:
+        description: 'Multiple repos, one per line (full URL or owner/repo)'
         required: true
+        type: string
       ref:
-        description: 'branch/tag (default HEAD)'
+        description: 'branch/tag (shared by all repos, default HEAD)'
         required: false
         default: 'HEAD'
 
@@ -19,28 +20,70 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
-      - uses: Swatinem/rust-cache@v2
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "repo-audit"
+          cache-targets: true
+          cache-on-failure: true
 
-      - run: cargo build --release --locked
+      - name: Build
+        run: cargo build --release --locked
 
-      - name: Run audit
+      - name: Run audit for multiple repos
         env:
-          REPO: ${{ inputs.repo_url }}
+          REPOS: ${{ inputs.repos }}
           REF: ${{ inputs.ref }}
         run: |
-          set -o pipefail
-          ./target/release/repo-audit audit "$REPO" --ref "$REF" \
-            --cache-dir "$GITHUB_WORKSPACE/.audit-cache" \
-            --tmp-dir "$GITHUB_WORKSPACE/.audit-tmp" \
-            | tee report.txt
+          set -euo pipefail
 
-      - name: Upload report
+          mkdir -p reports
+          SUMMARY="summary.txt"
+          echo "Audit Summary" > "$SUMMARY"
+          echo "==============" >> "$SUMMARY"
+          echo "" >> "$SUMMARY"
+
+          # Support both newline and comma separators
+          echo "$REPOS" | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep -v '^$' | while read -r REPO; do
+            echo "========================================"
+            echo "Processing: $REPO"
+            echo "========================================"
+
+            # Generate a safe filename
+            SAFE_NAME=$(echo "$REPO" | sed 's|https\?://||; s|github.com/||; s|/|_|g; s|[^a-zA-Z0-9._-]||g')
+            REPORT_FILE="reports/${SAFE_NAME}.txt"
+
+            set +e   # Continue even if one repo fails
+            ./target/release/repo-audit audit "$REPO" --ref "$REF" \
+              --cache-dir "$GITHUB_WORKSPACE/.audit-cache" \
+              --tmp-dir "$GITHUB_WORKSPACE/.audit-tmp" \
+              | tee "$REPORT_FILE"
+            EXIT_CODE=${PIPESTATUS[0]}
+            set -e
+
+            if [ $EXIT_CODE -eq 0 ]; then
+              STATUS="SUCCESS"
+            else
+              STATUS="FAILED (exit $EXIT_CODE)"
+            fi
+
+            echo "$STATUS  $REPO" | tee -a "$SUMMARY"
+            echo "" >> "$SUMMARY"
+          done
+
+          echo ""
+          echo "========== Final Summary =========="
+          cat "$SUMMARY"
+
+      - name: Upload reports
         uses: actions/upload-artifact@v4
         with:
-          name: audit-report
-          path: report.txt
-          retention-days: 1
+          name: audit-reports
+          path: |
+            reports/
+            summary.txt
+          retention-days: 7
 
       - name: Cleanup
         if: always()
-        run: rm -rf .audit-cache .audit-tmp
+        run: rm -rf .audit-cache .audit-tmp reports
